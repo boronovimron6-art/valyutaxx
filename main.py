@@ -11,129 +11,134 @@ TOKEN = '8606825506:AAHoLYaanIjoudJ5zDuhWsFkK-VG_FV29nk'
 ADMIN_ID = 505222809 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
-scheduler = BackgroundScheduler()
-scheduler.start()
 
-# --- BAZA BILAN ISHLASH ---
-def get_list(file_name):
+# AI Holati (Boshlang'ich holatda yoqilgan)
+ai_status = True 
+
+# --- BAZA ---
+def get_list(f):
     try:
-        with open(file_name, "r") as f: return f.read().splitlines()
+        with open(f, "r") as file: return file.read().splitlines()
     except: return []
 
-def save_id(file_name, target_id):
-    ids = get_list(file_name)
-    if str(target_id) not in ids:
-        with open(file_name, "a") as f: f.write(str(target_id) + "\n")
+def save_id(f, id):
+    ids = get_list(f)
+    if str(id) not in ids:
+        with open(f, "a") as file: file.write(str(id) + "\n")
 
-# --- AI: TARIFLAR VA AVTO-NARX ---
-def get_ai_pricing():
-    user_count = len(get_list("users.txt"))
-    base = max(user_count * 75, 15000) # AI narxni biroz oshirdi (sifat evaziga)
+# --- AI REKLAMA (FAQAT AI YOQILGAN BO'LSA ISHLAYDI) ---
+def ai_marketing_job():
+    global ai_status
+    if not ai_status: return # Agar AI o'chiq bo'lsa, reklama ketmaydi
     
-    tariffs = {
-        "Kunlik": base, "Haftalik": base * 4, "Oylik": base * 12,
-        "Kvartal": base * 30, "Yarim yillik": base * 55, "Yillik": base * 100
-    }
-    
-    text = f"🤖 **AI REKLAMA TARIFLARI**\n👥 Foydalanuvchilar: {user_count}\n\n"
-    for p, pr in tariffs.items():
-        text += f"📅 {p}: {pr:,.0f} so'm\n"
-    text += "\n⚠️ *Narxlar AI tomonidan auditoriya qamroviga qarab belgilandi.*"
-    return text
-
-# --- MA'LUMOTLARNI OLISH (API) ---
-def get_combined_data():
-    try:
-        # MB kurslari
-        r = requests.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/").json()
-        gold = next(i['Rate'] for i in r if i['Ccy'] == 'XAU') or "680,000"
-        
-        # Kripto (USDT) - Taxminiy bozor kursi
-        usdt = 12980 
-        
-        currencies = ['USD', 'EUR', 'RUB', 'KZT', 'GBP']
-        res = f"🟡 **OLTIN (1 gr): {gold} so'm**\n"
-        res += f"💎 **USDT (Kripto): {usdt:,.0f} so'm**\n"
-        res += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
-        
-        for c in currencies:
-            curr = next(i for i in r if i['Ccy'] == c)
-            icon = {'USD':'🇺🇸','EUR':'🇪🇺','RUB':'🇷🇺','KZT':'🇰🇿','GBP':'🇬🇧'}[c]
-            res += f"{icon} 1 {c} = {curr['Rate']} so'm\n"
-        
-        res += f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n📅 {r[0]['Date']}"
-        return res
-    except: return "⚠️ Ma'lumot yangilanishida xatolik."
-
-# --- AI AVTO-MARKETING ---
-def ai_auto_marketing():
     groups = get_list("groups.txt")
     if not groups: return
-    texts = [
-        "💰 Dollarni eng foydali kursda almashtirmoqchimisiz? Botga kiring!",
-        "🟡 Oltin va Kumush narxlari har 5 daqiqada yangilanmoqda!",
-        "📊 Banklardagi navbatlardan charchadingizmi? Kurslarni botda tekshiring!",
-        "🚀 AI yordamida valyuta hisoblash endi juda oson!"
+    
+    ai_texts = [
+        "🎁 Botimizga kirib 'Start' bosing va yutuqli kurs tahlillarini oling!",
+        "🟡 Oltin narxi o'zgarmoqda! AI bashoratlarini bot ichida ko'ring.",
+        "📊 Valyuta hisoblashda adashmang, eng aqlli kalkulyator bizda!",
+        "🚀 Guruhda kurslarni bilish uchun 'dollar' deb yozing yoki botga kiring."
     ]
+    
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🤖 Botni ishga tushirish", url=f"https://t.me/{bot.get_me().username}"))
-    for g in groups:
-        try: bot.send_message(g, random.choice(texts), reply_markup=markup)
+    markup.add(types.InlineKeyboardButton("🚀 Botni ochish", url=f"https://t.me/{bot.get_me().username}"))
+    
+    for g_id in groups:
+        try: bot.send_message(g_id, random.choice(ai_texts), reply_markup=markup)
         except: pass
 
+# --- AI NARX MASLAHATI ---
+def get_ai_suggestion():
+    users = len(get_list("users.txt"))
+    suggested_day = max(20000, users * 150)
+    
+    text = f"🤖 **AI NARX MASLAHATI**\n\n"
+    text += f"👥 Obunachilar: {users} ta\n"
+    text += f"💡 AI taklifi (Kunlik): {suggested_day:,.0f} so'm\n"
+    text += f"💡 AI taklifi (Oylik): {suggested_day*12:,.0f} so'm\n\n"
+    text += "✅ Ushbu narxlarni tasdiqlaysizmi?"
+    
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("✅ Tasdiqlash", callback_data="confirm_p"),
+               types.InlineKeyboardButton("❌ Rad etish", callback_data="reject_p"))
+    return text, markup
+
 # --- ASOSIY MENYU ---
-def main_menu(user_id):
+def main_kb(uid):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add("📊 Kurslar va Oltin", "🧮 AI Kalkulyator")
-    markup.add("🏦 Banklar kursi", "📈 Statistika")
-    if str(user_id) == str(ADMIN_ID):
-        markup.add("🤖 AI Reklama Paneli")
+    markup.add("📈 Statistika", "🏦 Banklar kursi")
+    if uid == ADMIN_ID:
+        # AI holatiga qarab tugma nomi o'zgaradi
+        status_text = "🤖 AI: YOQILGAN" if ai_status else "🔴 AI: O'CHIRILGAN"
+        markup.add("⚙️ AI Boshqaruvi", status_text)
     return markup
 
 @bot.message_handler(commands=['start'])
-def start(message):
-    save_id("users.txt" if message.chat.type == 'private' else "groups.txt", message.chat.id)
-    bot.send_message(message.chat.id, "Siz bilan AI Valyuta Assistenti. Xizmatga tayyorman!", reply_markup=main_menu(message.chat.id))
+def start(m):
+    save_id("users.txt" if m.chat.type == 'private' else "groups.txt", m.chat.id)
+    bot.send_message(m.chat.id, "AI Valyuta tizimi faoliyatini boshladi!", reply_markup=main_kb(m.chat.id))
 
-# --- KALKULYATOR (5 VALYUTA + OLTIN) ---
+# --- ADMIN: AI O'CHIRIB YOQISH ---
+@bot.message_handler(func=lambda m: m.text in ["🤖 AI: YOQILGAN", "🔴 AI: O'CHIRILGAN"] and m.chat.id == ADMIN_ID)
+def toggle_ai(m):
+    global ai_status
+    ai_status = not ai_status # Holatni almashtirish
+    text = "✅ AI tizimi ishga tushirildi! Endi u guruhlarda reklama qiladi." if ai_status else "🛑 AI tizimi to'xtatildi. Guruhlarga reklama ketmaydi."
+    bot.send_message(m.chat.id, text, reply_markup=main_kb(m.chat.id))
+
+@bot.message_handler(func=lambda m: m.text == "⚙️ AI Boshqaruvi" and m.chat.id == ADMIN_ID)
+def ai_manage(m):
+    if ai_status:
+        text, markup = get_ai_suggestion()
+        bot.send_message(ADMIN_ID, text, reply_markup=markup, parse_mode="Markdown")
+    else:
+        bot.send_message(ADMIN_ID, "⚠️ AI hozirda o'chirilgan. Uni yoqish uchun pastdagi tugmani bosing.")
+
+# --- KALKULYATOR ---
 @bot.message_handler(func=lambda m: m.text == "🧮 AI Kalkulyator")
-def calc_start(m):
-    markup = types.InlineKeyboardMarkup(row_width=3)
-    btns = [types.InlineKeyboardButton(x, callback_data=f"cl_{x}") for x in ['USD','EUR','RUB','KZT','GBP','OLTIN']]
-    markup.add(*btns)
-    bot.send_message(m.chat.id, "Hisoblamoqchi bo'lgan valyutangizni tanlang:", reply_markup=markup)
+def calc_select(m):
+    kb = types.InlineKeyboardMarkup(row_width=3)
+    btns = [types.InlineKeyboardButton(x, callback_data=f"c_{x}") for x in ['USD','EUR','RUB','KZT','GBP','OLTIN']]
+    kb.add(*btns)
+    bot.send_message(m.chat.id, "Qaysi valyutani so'mga hisoblaymiz?", reply_markup=kb)
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith('cl_'))
-def calc_callback(c):
+@bot.callback_query_handler(func=lambda c: c.data.startswith('c_'))
+def calc_input(c):
     val = c.data.split('_')[1]
-    msg = bot.send_message(c.message.chat.id, f"🔢 {val} miqdorini kiriting:")
-    bot.register_next_step_handler(msg, process_calculation, val)
+    msg = bot.send_message(c.message.chat.id, f"🔢 {val} miqdorini yozing:")
+    bot.register_next_step_handler(msg, calc_res, val)
 
-def process_calculation(m, val):
+def calc_res(m, val):
     try:
-        amt = float(m.text)
+        amt = float(m.text.replace(',', '.'))
         r = requests.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/").json()
-        rate = float(next(i['Rate'] for i in r if (i['Ccy'] == val or (val == 'OLTIN' and i['Ccy'] == 'XAU'))))
+        rate = 985450 if val == 'OLTIN' else float(next(i['Rate'] for i in r if i['Ccy'] == val))
         bot.send_message(m.chat.id, f"✅ {amt} {val} = **{amt*rate:,.2f} so'm**", parse_mode="Markdown")
-    except: bot.send_message(m.chat.id, "⚠️ Faqat raqam kiriting!")
+    except: bot.send_message(m.chat.id, "⚠️ Faqat raqam yozing.")
 
-# --- BOSHQA FUNKSIYALAR ---
+# --- KURSLAR VA STATISTIKA ---
 @bot.message_handler(func=lambda m: m.text == "📊 Kurslar va Oltin")
-def rates(m): bot.send_message(m.chat.id, get_combined_data(), parse_mode="Markdown")
-
-@bot.message_handler(func=lambda m: m.text == "🤖 AI Reklama Paneli" and m.chat.id == ADMIN_ID)
-def admin_p(m): bot.send_message(ADMIN_ID, get_ai_pricing(), parse_mode="Markdown")
+def show_r(m):
+    try:
+        r = requests.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/").json()
+        usd = next(i['Rate'] for i in r if i['Ccy'] == 'USD')
+        bot.send_message(m.chat.id, f"🟡 Oltin: 985,450 so'm\n🇺🇸 1 USD = {usd} so'm\n🇪🇺 1 EUR = {next(i['Rate'] for i in r if i['Ccy'] == 'EUR')} so'm")
+    except: bot.send_message(m.chat.id, "Tizimda uzilish...")
 
 @bot.message_handler(func=lambda m: m.text == "📈 Statistika")
-def stats(m):
+def show_s(m):
     u, g = len(get_list("users.txt")), len(get_list("groups.txt"))
-    bot.send_message(m.chat.id, f"📊 **Bot holati:**\n👤 Obunachilar: {u}\n👥 Guruhlar: {g}")
+    bot.send_message(m.chat.id, f"📊 **Statistika:**\n👤 Obunachilar: {u}\n👥 Guruhlar: {g}")
 
 # --- SERVER ---
 @app.route('/')
-def h(): return "AI System Online"
+def h(): return "AI System Running"
 
 if __name__ == "__main__":
-    scheduler.add_job(ai_auto_marketing, 'interval', hours=2)
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(ai_marketing_job, 'interval', hours=2)
+    scheduler.start()
     Thread(target=lambda: app.run(host='0.0.0.0', port=10000)).start()
     bot.infinity_polling()
